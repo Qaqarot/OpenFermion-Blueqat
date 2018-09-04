@@ -1,15 +1,16 @@
 from openfermion.ops import QubitOperator
-
-from blueqat import Circuit
 from blueqat.pauli import *
 
 def to_pauli_expr(qubit_operator):
+    """Convert OpenFermion `QubitOperator` to Blueqat `PauliExpr`."""
     def convert_ops(qo_ops, coeff):
         return Term.from_ops_iter((pauli_from_char(c, n) for n, c in qo_ops), coeff)
 
     return Expr.from_terms_iter(convert_ops(ops, coeff) for ops, coeff in qubit_operator.terms.items())
 
 def from_pauli_term(term):
+    """Convert Blueqat `PauliTerm` to OpenFermion `QubitOperator`.
+    Note: Use `from_pauli_expr` instead of this."""
     term = term.to_term()
     def ops_to_str(bq_ops):
         s_ops = []
@@ -19,6 +20,7 @@ def from_pauli_term(term):
     return QubitOperator(ops_to_str(term.ops), term.coeff)
 
 def from_pauli_expr(expr):
+    """Convert Blueqat `PauliExpr` or `PauliTerm` to OpenFermion `QubitOperator`."""
     terms = expr.to_expr().terms
     if not terms:
         return QubitOperator("I", 0)
