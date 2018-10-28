@@ -13,7 +13,7 @@ setuptools.setup(
     author_email="kato@mdrft.com",
     description="Interface of OpenFermion with Blueqat",
     long_description=long_description,
-    long_description_content_type="text/markdown",
+    long_description_content_type="text/x-rst",
     url="https://github.com/mdrft/OpenFermion-Blueqat",
     license="Apache 2",
     packages=setuptools.find_packages(),
