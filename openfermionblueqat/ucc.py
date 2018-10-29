@@ -28,4 +28,9 @@ def get_bk_initialize_circuit(hamiltonian):
     assert all(abs(x) < 0.0001 or abs(x - 1) < 0.0001 for x in state)
     bits = tuple(i for i, v in enumerate(state) if abs(v - 1) < 0.0001)
     c = Circuit(len(state) + 1)
-    return c.x[bits]
+    c = c.x[bits]
+    for i in range((len(state) - 2) / 2):
+        qmax = len(state) - 1
+        c = c.h[i].cnot[i, qmax - i].x[i]
+    c = c.h[(qmax - 1) / 2]
+    return c
