@@ -31,7 +31,7 @@ def from_pauli_expr(expr):
         qo += from_pauli_term(term)
     return qo
 
-def to_pauli_expr_with_bk(hamiltonian):
+def to_pauli_expr_with_bk(hamiltonian, n_qubits=None):
     """Convert from OpenFermion's `MolecularData`, `InteractionOperator`,
     `FermionOperator` or `QubitOperator` to Blueqat `PauliExpr`
     via Bravyi Kitaev transformation."""
@@ -40,7 +40,12 @@ def to_pauli_expr_with_bk(hamiltonian):
     if isinstance(hamiltonian, InteractionOperator):
         hamiltonian = get_fermion_operator(hamiltonian)
     if isinstance(hamiltonian, FermionOperator):
-        hamiltonian = bravyi_kitaev(hamiltonian)
+        hamiltonian = bravyi_kitaev(hamiltonian, n_qubits)
     if isinstance(hamiltonian, QubitOperator):
         hamiltonian = to_pauli_expr(hamiltonian)
+    if not isinstance(hamiltonian, Expr):
+        unsupported_type = "to_pauli_expr_with_bk() argument must be a `MolecularData`, " \
+                           + "an `InteractionOperator` or a `FermionOperator`, " \
+                           + f"not `{hamiltonian.__class__.__name__}`"
+        raise TypeError(unsupported_type)
     return hamiltonian
