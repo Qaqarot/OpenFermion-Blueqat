@@ -167,7 +167,7 @@ def trim_duplicated_fermion_operator(fermion):
             k2 = ((j, 1), (i, 1), (b, 0), (a, 0))
             if k2 in keys and k2 != k:
                 # These values must be almost same.
-                assert abs(fermion.terms[k] - fermion.terms[k2]) < 0.000001
+                assert abs(fermion.terms[k] - fermion.terms[k2]) < 0.00000001
                 del fermion.terms[k2]
 
 def trim_conjugate_fermion_operator(fermion):
@@ -182,7 +182,7 @@ def trim_conjugate_fermion_operator(fermion):
                 k2 = ((a, 1), (i, 0))
                 if k2 in keys and k2 != k:
                     # A complex conjugate of k2's value must be almost as same as k's value.
-                    assert abs(fermion.terms[k] - fermion.terms[k2].conjugate()) < 0.000001
+                    assert abs(fermion.terms[k] - fermion.terms[k2].conjugate()) < 0.00000001
                     del fermion.terms[k2]
         if len(k) == 4:
             if k[0][1] != 1 or k[1][1] != 1 or k[2][1] != 0 or k[3][1] != 0:
@@ -192,13 +192,13 @@ def trim_conjugate_fermion_operator(fermion):
             if i > b or (i == b and j > a):
                 if k2 in keys and k2 != k:
                     # A complex conjugate of k2's value must be almost as same as k's value.
-                    assert abs(fermion.terms[k] - fermion.terms[k2].conjugate()) < 0.000001
+                    assert abs(fermion.terms[k] - fermion.terms[k2].conjugate()) < 0.00000001
                     del fermion.terms[k2]
             k3 = ((a, 1), (b, 1), (i, 0), (j, 0))
             if i > a or (i == a and j > b):
                 if k3 in keys and k3 != k and k3 != k2:
                     # A complex conjugate of k2's value must be almost as same as k's value.
-                    assert abs(fermion.terms[k] - fermion.terms[k3].conjugate()) < 0.000001
+                    assert abs(fermion.terms[k] - fermion.terms[k3].conjugate()) < 0.00000001
                     del fermion.terms[k3]
 '''
 def get_bk_initialize_circuit(elecs, n_qubits=None):
