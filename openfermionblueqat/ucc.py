@@ -5,7 +5,7 @@ from openfermion import FermionOperator, bravyi_kitaev, get_fermion_operator
 from blueqat import Circuit, pauli
 from blueqat.vqe import AnsatzBase
 from ._transform import to_pauli_expr_with_bk, to_pauli_expr
-#from .bk import get_update_set
+from .bk import get_update_set, ucc_t1, ucc_t2
 
 class UCCAnsatz(AnsatzBase):
     """Ansatz of Unitary Coupled Cluster."""
@@ -32,18 +32,8 @@ class UCCAnsatz2(AnsatzBase):
         trim_conjugate_fermion_operator(h)
         def inv(k):
             return tuple((x, 0 if y else 1) for x, y in reversed(k))
-        ferms = [(FermionOperator(k, h.terms[k]), FermionOperator(inv(k), h.terms[k])) for k in h.terms]
-        qubits = [to_pauli_expr(bravyi_kitaev(t - tdg)) * 1.j for t, tdg in ferms]
-        zero = pauli.Expr.zero()
-        qubits = [q for q in qubits if q != zero]
-        #print(qubits)
-        self.terms = []
-        for terms in qubits:
-            a = []
-            for term in terms:
-                a.append(term)
-            self.terms.append(a)
-        #print(self.terms)
+        hdg = sum((FermionOperator(inv(k), h.terms[k].conjugate()) for k in h.terms), FermionOperator())
+        self.terms = list((to_pauli_expr_with_bk(h - hdg) * 1j))
         if n_params is None:
             n_params = len(self.terms)
         elif 0 < n_params < 1.0:
@@ -56,9 +46,8 @@ class UCCAnsatz2(AnsatzBase):
 
     def get_circuit(self, params):
         c = self.initial_circuit.copy()
-        for t, terms in zip(cycle(params), self.terms):
-            for term in terms:
-                term.get_time_evolution()(c, t * np.pi)
+        for t, term in zip(cycle(params), self.terms):
+            term.get_time_evolution()(c, t * np.pi)
         return c
 
 class UCCAnsatz3(AnsatzBase):
@@ -110,36 +99,63 @@ class UCCAnsatz4(AnsatzBase):
         trim_conjugate_fermion_operator(h)
         def inv(k):
             return tuple((x, 0 if y else 1) for x, y in reversed(k))
-        fermis = [(FermionOperator(k, h.terms[k]), FermionOperator(inv(k), h.terms[k])) for k in h.terms]
-        qubits = [to_pauli_expr(bravyi_kitaev(t - tdg)) * 1.j for t, tdg in fermis]
-        zero = pauli.Expr.zero()
-        qubits = [q for q in qubits if q != zero]
-        #print(qubits)
-        self.sterms = []
-        self.dterms = []
-        for q in qubits:
-            a = []
-            for term in q:
-                a.append(term)
-            if len(a) == 4:
-                self.dterms.append(a)
-            if len(a) == 2:
-                self.sterms.append(a)
-        #print(self.terms)
-        self.n_step = n_step
-        super().__init__(hamiltonian, n_step * 2)
+        hdg = sum((FermionOperator(inv(k), h.terms[k].conjugate()) for k in h.terms), FermionOperator())
+        self.terms = list((to_pauli_expr_with_bk(h - hdg) * 1j))
+        super().__init__(hamiltonian, n_step)
 
     def get_circuit(self, params):
         c = self.initial_circuit.copy()
-        p_ofs = 0
-        for t2, t4 in zip(params, params[self.n_step:]):
-            for terms in self.sterms:
-                for term in terms:
-                    term.get_time_evolution()(c, t2 * np.pi)
-            for terms in self.dterms:
-                for term in terms:
-                    term.get_time_evolution()(c, t4 * np.pi)
+        for t in params:
+            for term in self.terms:
+                term.get_time_evolution()(c, t * np.pi)
         return c
+
+class UCCAnsatz5(AnsatzBase):
+    """Ansatz of Unitary Coupled Cluster."""
+    def __init__(self, molecule, n_step=1, initial_circuit=None):
+        if initial_circuit is None:
+            initial_circuit = make_hf_circuit(molecule)
+        initial_circuit.make_cache()
+
+        f = get_fermion_operator(molecule.get_molecular_hamiltonian())
+        trim_zero_fermion_operator(f)
+        hamiltonian = to_pauli_expr_with_bk(f).simplify()
+
+        n_electrons = molecule.n_electrons
+        n_spinorbitals = molecule.n_orbitals * 2
+        n_qubits = molecule.n_qubits
+        t2_exprs = [ucc_t2(r, s, a, b, n_qubits)
+                    for r in range(n_electrons, n_spinorbitals)
+                    for s in range(r + 1, n_spinorbitals)
+                    for a in range(n_electrons)
+                    for b in range(a + 1, n_electrons)]
+        t1_exprs = [ucc_t1(r, a, n_qubits)
+                    for r in range(n_electrons, n_spinorbitals)
+                    for a in range(n_electrons)]
+        #print(t2_exprs)
+        #print(t1_exprs)
+        evolves = [[term.get_time_evolution() for term in expr.terms]
+                   for expr in t1_exprs + t2_exprs]
+        self.molecule = molecule
+        self.initial_circuit = initial_circuit
+        self.evolves = evolves
+        self.n_step = n_step
+        super().__init__(hamiltonian, len(evolves))
+
+    def get_circuit(self, params):
+        c = self.initial_circuit.copy()
+        for _ in range(self.n_step):
+            for evolve, param in zip(self.evolves, params):
+                for evo in evolve:
+                    evo(c, param * np.pi)
+        return c
+
+def make_hf_circuit(molecule):
+    n_qubits = molecule.n_qubits
+    s = set()
+    for i in range(molecule.n_electrons):
+        s ^= get_update_set(i, n_qubits)
+    return Circuit().x[tuple(sorted(s))]
 
 def trim_zero_fermion_operator(fermion):
     """Remove [i^ i^ a b] or [i^ j^ a a]"""

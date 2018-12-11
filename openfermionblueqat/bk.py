@@ -114,3 +114,76 @@ def creation(index, n_qubits):
 
 def a_adg_pair(n_qubits):
     return (lambda i: annihilation(i, n_qubits)), (lambda i: creation(i, n_qubits))
+
+def ucc_t1(r, a, n_qubits):
+    """Returns ([r^ a] - [r^ a]†) operator in BK basis."""
+    an, cr = a_adg_pair(n_qubits)
+    return (1j * (cr(r) * an(a) - cr(a) * an(r))).simplify()
+    # annihilation(a) = 0.5 (X_U(a) X_a Z_P(a) + j X_U(a) Y_a Z_ρ(a))
+    # creation(r)     = 0.5 (X_U(r) X_r Z_P(r) - j X_U(r) Y_r Z_ρ(r))
+    # Therefore,
+    # [r^ a]  = 0.25 (X_U(r) X_r Z_P(r) X_U(a) X_a Z_P(a)
+    #              -  X_U(r) Y_r Z_ρ(r) X_U(a) Y_a Z_ρ(a)
+    #              +j X_U(r) X_r Z_P(r) X_U(a) Y_a Z_ρ(a)
+    #              -j X_U(r) Y_r Z_ρ(r) X_U(a) X_a Z_P(a))
+    # [r^ a]† = 0.25 (X_U(r) X_r Z_P(r) X_U(a) X_a Z_P(a)
+    #              -  X_U(r) Y_r Z_ρ(r) X_U(a) Y_a Z_ρ(a)
+    #              -j X_U(r) X_r Z_P(r) X_U(a) Y_a Z_ρ(a)
+    #              +j X_U(r) Y_r Z_ρ(r) X_U(a) X_a Z_P(a))
+    # [r^ a] - [r^ a]†
+    #         = 0.5j (X_U(r) X_r Z_P(r) X_U(a) Y_a Z_ρ(a)
+    #               - X_U(r) Y_r Z_ρ(r) X_U(a) X_a Z_P(a))
+    # This function returns [r^ a] - [r^ a]† but eliminate coefficient 0.5j.
+    prod = pauli_product
+    ur = get_update_set(r, n_qubits, False)
+    ua = get_update_set(a, n_qubits, False)
+    pr = get_parity_set(r)
+    pa = get_parity_set(a)
+    fr = get_flip_set(r)
+    rr = pr - fr
+    fa = get_flip_set(a)
+    ra = pa - fa
+    return (prod(X, ur) * X[r] * prod(Z, pr) * prod(X, ua) * Y[a] * prod(Z, ra) -
+            prod(X, ur) * Y[r] * prod(Z, rr) * prod(X, ua) * X[a] * prod(Z, pa)).simplify()
+
+def ucc_t2(r, s, a, b, n_qubits):
+    """Returns ([r^ s^ b a] - [r^ s^ b a]†) operator in BK basis."""
+    an, cr = a_adg_pair(n_qubits)
+    return (1j * (cr(r) * cr(s) * an(b) * an(a) - cr(a) * cr(b) * an(s) * an(r))).simplify()
+    # Assume that
+    # annihilation(a) = X(a) + jY(a)
+    # creation(r)     = X(r) - jY(r)
+    # Then,
+    # [r^ s^ b a] =  (X(r) - jY(r))(X(s) - jY(s))(X(b) + jY(b))(X(a) + jY(a))
+    #             =  [(X(r)X(s) - Y(r)Y(s))(X(b)X(a) - Y(b)Y(a))
+    #              +  (Y(r)X(s) + X(r)Y(s))(Y(b)X(a) + X(b)Y(a))]
+    #              +j[(X(r)X(s) - Y(r)Y(s))(Y(b)X(a) + X(b)Y(a))
+    #              -  (Y(r)X(s) + X(r)Y(s))(X(b)X(a) - Y(b)Y(a))]
+    # [r^ s^ b a] - [r^ s^ b a]† preserved only imaginary part.
+    # This operator is not applied Bravyi-Kitaev basis,
+    # however we can represent it in Bravyi-Kitaev basis using
+    # BK transformed annihilation and creation operator.
+    # annihilation(a) = 0.5 (X_U(a) X_a Z_P(a) + j X_U(a) Y_a Z_ρ(a))
+    # creation(r)     = 0.5 (X_U(r) X_r Z_P(r) - j X_U(r) Y_r Z_ρ(r))
+    ur = get_update_set(r, n_qubits, False)
+    us = get_update_set(s, n_qubits, False)
+    ua = get_update_set(a, n_qubits, False)
+    ub = get_update_set(b, n_qubits, False)
+    pr = get_parity_set(r)
+    ps = get_parity_set(s)
+    pa = get_parity_set(a)
+    pb = get_parity_set(b)
+    rr = pr - get_flip_set(r)
+    rs = ps - get_flip_set(s)
+    ra = pa - get_flip_set(a)
+    rb = pb - get_flip_set(b)
+    xr = pauli_product(X, ur) * X[r] * pauli_product(Z, pr)
+    yr = pauli_product(X, ur) * Y[r] * pauli_product(Z, rr)
+    xs = pauli_product(X, us) * X[s] * pauli_product(Z, ps)
+    ys = pauli_product(X, us) * Y[s] * pauli_product(Z, rs)
+    xa = pauli_product(X, ua) * X[a] * pauli_product(Z, pa)
+    ya = pauli_product(X, ua) * Y[a] * pauli_product(Z, ra)
+    xb = pauli_product(X, ub) * X[b] * pauli_product(Z, pb)
+    yb = pauli_product(X, ub) * Y[b] * pauli_product(Z, rb)
+    return ((xr * xs - yr * ys) * (yb * xa + xb * ya) -
+            (yr * xs + xr * ys) * (xb * xa - yb * ya)).simplify()
