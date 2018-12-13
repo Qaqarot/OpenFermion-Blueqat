@@ -23,6 +23,9 @@ class UCCAnsatz(AnsatzBase):
 
 class UCCAnsatz2(AnsatzBase):
     """Ansatz of Unitary Coupled Cluster."""
+    # FermionOperator各項の†とったやつ。
+    # けど、元がHだから、H-H†=0になってしまうので、一部の項を消してる
+    # パラメータは、項ごとに与える or くるくる使いまわし
     def __init__(self, molecule, initial_circuit, n_params=None):
         self.initial_circuit = initial_circuit
         hamiltonian = to_pauli_expr_with_bk(molecule)
@@ -52,6 +55,8 @@ class UCCAnsatz2(AnsatzBase):
 
 class UCCAnsatz3(AnsatzBase):
     """Ansatz of Unitary Coupled Cluster."""
+    # †作る処理は、2と同じ。
+    # パラメータはqubitごとに決めてる。根拠なし。
     def __init__(self, molecule, n_step, initial_circuit):
         self.initial_circuit = initial_circuit
         hamiltonian = to_pauli_expr_with_bk(molecule)
@@ -90,6 +95,7 @@ class UCCAnsatz3(AnsatzBase):
 
 class UCCAnsatz4(AnsatzBase):
     """Ansatz of Unitary Coupled Cluster."""
+    # †取る処理は上と同じ。各ステップ、共通のパラメータ。
     def __init__(self, molecule, n_step, initial_circuit):
         self.initial_circuit = initial_circuit
         hamiltonian = to_pauli_expr_with_bk(molecule)
@@ -112,6 +118,8 @@ class UCCAnsatz4(AnsatzBase):
 
 class UCCAnsatz5(AnsatzBase):
     """Ansatz of Unitary Coupled Cluster."""
+    # 回路づくりにはハミルトニアン使わない。
+    # T-T† (つまり、生成消滅演算子の積の虚部)をパラメータにしてる
     def __init__(self, molecule, n_step=1, initial_circuit=None):
         if initial_circuit is None:
             initial_circuit = make_hf_circuit(molecule)
