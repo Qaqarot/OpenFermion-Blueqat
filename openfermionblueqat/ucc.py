@@ -158,6 +158,128 @@ class UCCAnsatz5(AnsatzBase):
                     evo(c, param * np.pi)
         return c
 
+class UCCAnsatz6(AnsatzBase):
+    """Ansatz of Unitary Coupled Cluster."""
+    # 回路づくりの係数にハミルトニアンの数値入れてみる。意味あるのか不明
+    # T-T† (つまり、生成消滅演算子の積の虚部)をパラメータにしてる
+    def __init__(self, molecule, n_step=1, initial_circuit=None):
+        if initial_circuit is None:
+            initial_circuit = make_hf_circuit(molecule)
+        initial_circuit.make_cache()
+
+        f = get_fermion_operator(molecule.get_molecular_hamiltonian())
+        trim_zero_fermion_operator(f)
+        hamiltonian = to_pauli_expr_with_bk(f).simplify()
+
+        def get2():
+            for r in range(n_electrons, n_spinorbitals):
+                for s in range(r + 1, n_spinorbitals):
+                    for a in range(n_electrons):
+                        for b in range(a + 1, n_electrons):
+                            try:
+                                yield ucc_t2(r, s, a, b, n_qubits) * f.terms[((r, 1), (s, 1), (a, 0), (b, 0))]
+                            except KeyError:
+                                pass
+
+        def get1():
+            for r in range(n_electrons, n_spinorbitals):
+                for a in range(n_electrons):
+                    try:
+                        yield ucc_t1(r, a, n_qubits) * f.terms[((r, 1), (a, 0))]
+                    except KeyError:
+                        pass
+
+        n_electrons = molecule.n_electrons
+        n_spinorbitals = molecule.n_orbitals * 2
+        n_qubits = molecule.n_qubits
+        t2_exprs = list(get2())
+        t1_exprs = [ucc_t1(r, a, n_qubits)
+                    for r in range(n_electrons, n_spinorbitals)
+                    for a in range(n_electrons)]
+        #print(t2_exprs)
+        #print(t1_exprs)
+        evolves = [[term.get_time_evolution() for term in expr.terms]
+                   for expr in t1_exprs + t2_exprs]
+        self.molecule = molecule
+        self.initial_circuit = initial_circuit
+        self.evolves = evolves
+        self.n_step = n_step
+        super().__init__(hamiltonian, len(evolves))
+
+    def get_circuit(self, params):
+        c = self.initial_circuit.copy()
+        for _ in range(self.n_step):
+            for evolve, param in zip(self.evolves, params):
+                for evo in evolve:
+                    evo(c, param)
+        return c
+
+class UCCAnsatz7(AnsatzBase):
+    """Ansatz of Unitary Coupled Cluster."""
+    # 2のうち、a < b < r < s に限定してみた。6と同じになるはず。
+    def __init__(self, molecule, initial_circuit, n_params=None):
+        self.initial_circuit = initial_circuit
+        hamiltonian = to_pauli_expr_with_bk(molecule)
+        h = get_fermion_operator(molecule.get_molecular_hamiltonian())
+        trim_zero_fermion_operator(h)
+        trim_duplicated_fermion_operator(h)
+        trim_conjugate_fermion_operator(h)
+        n_electrons = molecule.n_electrons
+        print("n_electrons:", n_electrons)
+        keys = list(h.terms)
+        for k in keys:
+            if len(k) == 2:
+                # [r^ a]: r < n_electrons, a >= n_electronsならdel
+                if k[0][0] < n_electrons:
+                    print(k, "=>", "Deleted (r is not virtual)")
+                    del h.terms[k]
+                elif k[1][0] >= n_electrons:
+                    print(k, "=>", "Deleted (a is not occupied)")
+                    del h.terms[k]
+                else:
+                    print(k, "=>", "Not Deleted")
+            elif len(k) == 4:
+                # [r^ s^ b a]: r,s < n_electrons, a,b >= n_electronsや、a < b, r < sならdel
+                if k[0][0] < n_electrons:
+                    print(k, "=>", "Deleted (r is not virtual)")
+                    del h.terms[k]
+                elif k[1][0] < n_electrons:
+                    print(k, "=>", "Deleted (s is not virtual)")
+                    del h.terms[k]
+                elif k[2][0] >= n_electrons:
+                    print(k, "=>", "Deleted (b is not occupied)")
+                    del h.terms[k]
+                elif k[3][0] >= n_electrons:
+                    print(k, "=>", "Deleted (a is not occupied)")
+                    del h.terms[k]
+                elif k[0][0] < k[1][0]:
+                    print(k, "=>", "Deleted (r < s)")
+                    del h.terms[k]
+                elif k[2][0] > k[3][0]:
+                    print(k, "=>", "Deleted (a < b)")
+                    del h.terms[k]
+                else:
+                    print(k, "=>", "Not Deleted")
+        def inv(k):
+            return tuple((x, 0 if y else 1) for x, y in reversed(k))
+        hdg = sum((FermionOperator(inv(k), h.terms[k].conjugate()) for k in h.terms), FermionOperator())
+        self.terms = list((to_pauli_expr_with_bk(h - hdg) * 1j))
+        if n_params is None:
+            n_params = len(self.terms)
+        elif 0 < n_params < 1.0:
+            n_params = int(len(self.terms) * n_params)
+        if not isinstance(n_params, int):
+            raise ValueError("n_params shall be None, 0.0 < n_params < 1.0, or integer")
+        if n_params > len(self.terms):
+            n_params = self.terms
+        super().__init__(hamiltonian, n_params)
+
+    def get_circuit(self, params):
+        c = self.initial_circuit.copy()
+        for t, term in zip(cycle(params), self.terms):
+            term.get_time_evolution()(c, t * np.pi)
+        return c
+
 def make_hf_circuit(molecule):
     n_qubits = molecule.n_qubits
     s = set()
@@ -238,3 +360,13 @@ def get_bk_initialize_circuit(elecs, n_qubits=None):
         bits ^= get_update_set(e, n_qubits)
     return Circuit().x[tuple(bits)]
 '''
+
+def ucc_t1(r, a, n_qubits):
+    """Returns ([r^ a] - [r^ a]†) operator in BK basis."""
+    an, cr = a_adg_pair(n_qubits)
+    return (1j * (cr(r) * an(a) - cr(a) * an(r))).simplify()
+
+def ucc_t2(r, s, a, b, n_qubits):
+    """Returns ([r^ s^ b a] - [r^ s^ b a]†) operator in BK basis."""
+    an, cr = a_adg_pair(n_qubits)
+    return (1j * (cr(r) * cr(s) * an(b) * an(a) - cr(a) * cr(b) * an(s) * an(r))).simplify()
