@@ -2,6 +2,7 @@ import numpy as np
 from blueqat import Circuit
 from blueqat.vqe import AnsatzBase
 from ._transform import to_pauli_expr_with_bk
+from .bk import to_bk_basis
 
 class UCCAnsatz(AnsatzBase):
     """Ansatz of Unitary Coupled Cluster."""
@@ -17,15 +18,12 @@ class UCCAnsatz(AnsatzBase):
                 term.get_time_evolution()(c, t * np.pi)
         return c
 
-def get_bk_initialize_circuit(hamiltonian):
+def get_bk_initialize_circuit(indices, n_qubits=None):
     """This function is experimental and temporary.
 
     Get the circuit to make initial state.
     Qubits are encoded by Bravyi Kitaev transformation."""
-    hamiltonian = to_pauli_expr_with_bk(hamiltonian)
-    mat = hamiltonian.to_matrix()
-    state = mat[:, 0]
-    assert all(abs(x) < 0.0001 or abs(x - 1) < 0.0001 for x in state)
-    bits = tuple(i for i, v in enumerate(state) if abs(v - 1) < 0.0001)
-    c = Circuit(len(state) + 1)
-    return c.x[bits]
+    return Circuit().x[tuple(sorted(to_bk_basis(indices, n_qubits)))]
+
+def get_hf_circuit(molecule):
+    return get_bk_initialize_circuit(range(molecule.n_electrons), molecule.n_qubits)
