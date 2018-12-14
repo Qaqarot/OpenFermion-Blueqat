@@ -346,20 +346,15 @@ def trim_conjugate_fermion_operator(fermion):
                     # A complex conjugate of k2's value must be almost as same as k's value.
                     assert abs(fermion.terms[k] - fermion.terms[k3].conjugate()) < 0.00000001
                     del fermion.terms[k3]
-'''
-def get_bk_initialize_circuit(elecs, n_qubits=None):
+def get_bk_initialize_circuit(indices, n_qubits=None):
     """This function is experimental and temporary.
 
     Get the circuit to make initial state.
     Qubits are encoded by Bravyi Kitaev transformation."""
-    elecs = tuple(elecs)
-    if n_qubits is None:
-        n_qubits = max(elecs) + 1
-    bits = set()
-    for e in elecs:
-        bits ^= get_update_set(e, n_qubits)
-    return Circuit().x[tuple(bits)]
-'''
+    return Circuit().x[tuple(sorted(to_bk_basis(indices, n_qubits)))]
+
+def get_hf_circuit(molecule):
+    return get_bk_initialize_circuit(range(molecule.n_electrons), molecule.n_qubits)
 
 def ucc_t1(r, a, n_qubits):
     """Returns ([r^ a] - [r^ a]†) operator in BK basis."""
