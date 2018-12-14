@@ -5,12 +5,14 @@ Openfermion-Blueqat
 Install
 =======
 
-::
+.. code-block:: sh
 
-git clone https://github.com/mdrft/OpenFermion-Blueqat
-cd OpenFermion-Blueqat
-pip3 install -e .
+    git clone https://github.com/mdrft/OpenFermion-Blueqat
+    cd OpenFermion-Blueqat
+    pip3 install -e .
 
-or ::
+or
 
-pip3 install openfermionblueqat
+.. code-block:: sh
+
+    pip3 install openfermionblueqat
