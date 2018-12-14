@@ -5,7 +5,7 @@ from openfermion import FermionOperator, bravyi_kitaev, get_fermion_operator
 from blueqat import Circuit, pauli
 from blueqat.vqe import AnsatzBase
 from ._transform import to_pauli_expr_with_bk, to_pauli_expr
-from .bk import get_update_set, ucc_t1, ucc_t2
+from .bk import *
 
 class UCCAnsatz(AnsatzBase):
     """Ansatz of Unitary Coupled Cluster."""
@@ -216,8 +216,11 @@ class UCCAnsatz6(AnsatzBase):
 
 class UCCAnsatz7(AnsatzBase):
     """Ansatz of Unitary Coupled Cluster."""
-    # 2のうち、a < b < r < s に限定してみた。6と同じになるはず。
-    def __init__(self, molecule, initial_circuit, n_params=None):
+    # 2のうち、a < b < r < s に限定してみた。6と同じになるかと思ったけど、ならない??
+    def __init__(self, molecule, initial_circuit, n_params=None, verbose=False):
+        def print_(*args):
+            if verbose:
+                print(*args)
         self.initial_circuit = initial_circuit
         hamiltonian = to_pauli_expr_with_bk(molecule)
         h = get_fermion_operator(molecule.get_molecular_hamiltonian())
@@ -225,41 +228,41 @@ class UCCAnsatz7(AnsatzBase):
         trim_duplicated_fermion_operator(h)
         trim_conjugate_fermion_operator(h)
         n_electrons = molecule.n_electrons
-        print("n_electrons:", n_electrons)
+        print_("n_electrons:", n_electrons)
         keys = list(h.terms)
         for k in keys:
             if len(k) == 2:
                 # [r^ a]: r < n_electrons, a >= n_electronsならdel
                 if k[0][0] < n_electrons:
-                    print(k, "=>", "Deleted (r is not virtual)")
+                    print_(k, "=>", "Deleted (r is not virtual)")
                     del h.terms[k]
                 elif k[1][0] >= n_electrons:
-                    print(k, "=>", "Deleted (a is not occupied)")
+                    print_(k, "=>", "Deleted (a is not occupied)")
                     del h.terms[k]
                 else:
-                    print(k, "=>", "Not Deleted")
+                    print_(k, "=>", "Not Deleted")
             elif len(k) == 4:
                 # [r^ s^ b a]: r,s < n_electrons, a,b >= n_electronsや、a < b, r < sならdel
                 if k[0][0] < n_electrons:
-                    print(k, "=>", "Deleted (r is not virtual)")
+                    print_(k, "=>", "Deleted (r is not virtual)")
                     del h.terms[k]
                 elif k[1][0] < n_electrons:
-                    print(k, "=>", "Deleted (s is not virtual)")
+                    print_(k, "=>", "Deleted (s is not virtual)")
                     del h.terms[k]
                 elif k[2][0] >= n_electrons:
-                    print(k, "=>", "Deleted (b is not occupied)")
+                    print_(k, "=>", "Deleted (b is not occupied)")
                     del h.terms[k]
                 elif k[3][0] >= n_electrons:
-                    print(k, "=>", "Deleted (a is not occupied)")
+                    print_(k, "=>", "Deleted (a is not occupied)")
                     del h.terms[k]
                 elif k[0][0] < k[1][0]:
-                    print(k, "=>", "Deleted (r < s)")
+                    print_(k, "=>", "Deleted (r < s)")
                     del h.terms[k]
                 elif k[2][0] > k[3][0]:
-                    print(k, "=>", "Deleted (a < b)")
+                    print_(k, "=>", "Deleted (a < b)")
                     del h.terms[k]
                 else:
-                    print(k, "=>", "Not Deleted")
+                    print_(k, "=>", "Not Deleted")
         def inv(k):
             return tuple((x, 0 if y else 1) for x, y in reversed(k))
         hdg = sum((FermionOperator(inv(k), h.terms[k].conjugate()) for k in h.terms), FermionOperator())
@@ -358,10 +361,12 @@ def get_hf_circuit(molecule):
 
 def ucc_t1(r, a, n_qubits):
     """Returns ([r^ a] - [r^ a]†) operator in BK basis."""
-    an, cr = a_adg_pair(n_qubits)
+    an = lambda x: annihilation(x, n_qubits)
+    cr = lambda x: creation(x, n_qubits)
     return (1j * (cr(r) * an(a) - cr(a) * an(r))).simplify()
 
 def ucc_t2(r, s, a, b, n_qubits):
     """Returns ([r^ s^ b a] - [r^ s^ b a]†) operator in BK basis."""
-    an, cr = a_adg_pair(n_qubits)
+    an = lambda x: annihilation(x, n_qubits)
+    cr = lambda x: creation(x, n_qubits)
     return (1j * (cr(r) * cr(s) * an(b) * an(a) - cr(a) * cr(b) * an(s) * an(r))).simplify()
