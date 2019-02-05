@@ -1,2 +1,2 @@
-openfermion ~= "0.8"
-blueqat ~= "0.2.1"
+openfermion~=0.8
+blueqat~=0.3.3
