@@ -44,7 +44,7 @@ class UCCAnsatz2(AnsatzBase):
         if not isinstance(n_params, int):
             raise ValueError("n_params shall be None, 0.0 < n_params < 1.0, or integer")
         if n_params > len(self.terms):
-            n_params = self.terms
+            n_params = len(self.terms)
         super().__init__(hamiltonian, n_params)
 
     def get_circuit(self, params):
