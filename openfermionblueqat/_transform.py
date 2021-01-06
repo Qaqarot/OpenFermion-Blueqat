@@ -1,4 +1,4 @@
-from openfermion.hamiltonians import MolecularData
+from openfermion import MolecularData
 from openfermion.ops import InteractionOperator, FermionOperator, QubitOperator
 from openfermion.transforms import bravyi_kitaev, get_fermion_operator
 from blueqat.pauli import *
